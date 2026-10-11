@@ -1,3 +1,4 @@
+from .logger import logger
 import json
 from flask import Blueprint, render_template, request, redirect, url_for, current_app
 from . import models

@@ -1,0 +1,83 @@
+2026-10-11 17:25:57,672 [INFO] 数据库初始化完成
+2026-10-11 17:25:57,702 [INFO] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+2026-10-11 17:25:57,702 [INFO] Press CTRL+C to quit
+2026-10-11 17:25:57,703 [INFO]  * Restarting with stat
+2026-10-11 17:25:57,991 [INFO] 数据库初始化完成
+2026-10-11 17:25:58,007 [WARNING]  * Debugger is active!
+2026-10-11 17:25:58,014 [INFO]  * Debugger PIN: 693-929-019
+2026-10-11 17:26:24,299 [INFO] 数据库初始化完成
+2026-10-11 17:26:24,334 [INFO] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+2026-10-11 17:26:24,334 [INFO] Press CTRL+C to quit
+2026-10-11 17:26:24,336 [INFO]  * Restarting with stat
+2026-10-11 17:26:24,647 [INFO] 数据库初始化完成
+2026-10-11 17:26:24,664 [WARNING]  * Debugger is active!
+2026-10-11 17:26:24,671 [INFO]  * Debugger PIN: 693-929-019
+2026-10-11 17:26:37,600 [INFO] 127.0.0.1 - - [11/Oct/2026 17:26:37] "GET /detail/8 HTTP/1.1" 200 -
+2026-10-11 17:26:37,688 [INFO] 127.0.0.1 - - [11/Oct/2026 17:26:37] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:26:39,765 [INFO] 127.0.0.1 - - [11/Oct/2026 17:26:39] "GET /detail/8 HTTP/1.1" 200 -
+2026-10-11 17:26:39,771 [INFO] 127.0.0.1 - - [11/Oct/2026 17:26:39] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:26:47,082 [INFO] 127.0.0.1 - - [11/Oct/2026 17:26:47] "GET / HTTP/1.1" 200 -
+2026-10-11 17:26:47,091 [INFO] 127.0.0.1 - - [11/Oct/2026 17:26:47] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:28:07,426 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:07] "GET /upload HTTP/1.1" 200 -
+2026-10-11 17:28:07,431 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:07] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:28:11,343 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:11] "POST /upload HTTP/1.1" 200 -
+2026-10-11 17:28:11,350 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:11] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:28:32,604 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:32] "GET /upload HTTP/1.1" 200 -
+2026-10-11 17:28:34,291 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:34] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:28:34,297 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:34] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:28:38,350 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:38] "GET /detail/8 HTTP/1.1" 200 -
+2026-10-11 17:28:38,356 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:38] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:28:42,586 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:42] "GET /detail/8 HTTP/1.1" 200 -
+2026-10-11 17:28:42,592 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:42] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:28:46,984 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:46] "GET /detail/999 HTTP/1.1" 404 -
+2026-10-11 17:28:46,994 [INFO] 127.0.0.1 - - [11/Oct/2026 17:28:46] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:30:26,593 [INFO] 数据库初始化完成
+2026-10-11 17:30:26,624 [INFO] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+2026-10-11 17:30:26,624 [INFO] Press CTRL+C to quit
+2026-10-11 17:30:26,626 [INFO]  * Restarting with stat
+2026-10-11 17:30:26,969 [INFO] 数据库初始化完成
+2026-10-11 17:30:26,987 [WARNING]  * Debugger is active!
+2026-10-11 17:30:26,995 [INFO]  * Debugger PIN: 693-929-019
+2026-10-11 17:30:40,365 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:40] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:30:40,474 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:40] "GET /static/css/style.css HTTP/1.1" 200 -
+2026-10-11 17:30:41,655 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:41] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:30:41,661 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:41] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:30:48,336 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:48] "GET / HTTP/1.1" 200 -
+2026-10-11 17:30:48,346 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:48] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:30:49,984 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:49] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:30:49,990 [INFO] 127.0.0.1 - - [11/Oct/2026 17:30:49] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:42:17,097 [INFO] 数据库初始化完成
+2026-10-11 17:42:17,127 [INFO] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+2026-10-11 17:42:17,127 [INFO] Press CTRL+C to quit
+2026-10-11 17:42:17,128 [INFO]  * Restarting with stat
+2026-10-11 17:42:17,403 [INFO] 数据库初始化完成
+2026-10-11 17:42:17,419 [WARNING]  * Debugger is active!
+2026-10-11 17:42:17,426 [INFO]  * Debugger PIN: 693-929-019
+2026-10-11 17:42:20,059 [INFO] 127.0.0.1 - - [11/Oct/2026 17:42:20] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:42:20,125 [INFO] 127.0.0.1 - - [11/Oct/2026 17:42:20] "GET /static/css/style.css HTTP/1.1" 200 -
+2026-10-11 17:45:26,762 [INFO] 数据库初始化完成
+2026-10-11 17:45:26,795 [INFO] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on http://127.0.0.1:5000
+2026-10-11 17:45:26,795 [INFO] Press CTRL+C to quit
+2026-10-11 17:45:26,796 [INFO]  * Restarting with stat
+2026-10-11 17:45:27,133 [INFO] 数据库初始化完成
+2026-10-11 17:45:27,150 [WARNING]  * Debugger is active!
+2026-10-11 17:45:27,157 [INFO]  * Debugger PIN: 693-929-019
+2026-10-11 17:45:31,594 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:31] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:31,655 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:31] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:45:33,632 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:33] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:33,647 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:33] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:45:34,321 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:34,327 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:45:34,643 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:34,650 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:45:34,814 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:34,820 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:45:34,968 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:34,973 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:34] "GET /static/css/style.css HTTP/1.1" 304 -
+2026-10-11 17:45:35,131 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:35] "GET /history HTTP/1.1" 200 -
+2026-10-11 17:45:35,137 [INFO] 127.0.0.1 - - [11/Oct/2026 17:45:35] "GET /static/css/style.css HTTP/1.1" 304 -

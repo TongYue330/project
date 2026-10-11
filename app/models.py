@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from .logger import logger
 
 
 def get_db(app):
@@ -38,6 +39,7 @@ def init_db(app):
 
     conn.commit()
     conn.close()
+    logger.info('数据库初始化完成')
 
 
 def insert_question(app, input_type, content=None, image_path=None):
@@ -83,25 +85,31 @@ def list_questions_with_answers(app):
         conn.close()
         return rows
     except sqlite3.Error as e:
-        print(f'[DB ERROR] list_questions_with_answers: {e}')
+        logger.error(f'数据库读取失败：{e}')
         return []
 
 
 def get_question_detail(app, question_id):
-    conn = get_db(app)
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM question WHERE id = ?', (question_id,))
-    q = cursor.fetchone()
-    if not q:
+    try:
+        conn = get_db(app)
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM question WHERE id = ?', (question_id,))
+        q = cursor.fetchone()
+        if not q:
+            conn.close()
+            return None
+
+        cursor.execute(
+            'SELECT * FROM answer WHERE question_id = ? ORDER BY id DESC LIMIT 1',
+            (question_id,)
+        )
+        a = cursor.fetchone()
         conn.close()
+
+        return {
+            'question': dict(q),
+            'answer': dict(a) if a else None
+        }
+    except sqlite3.Error as e:
+        logger.error(f'查询详情失败：question_id={question_id}, error={e}')
         return None
-    cursor.execute(
-        'SELECT * FROM answer WHERE question_id = ? ORDER BY id DESC LIMIT 1',
-        (question_id,)
-    )
-    a = cursor.fetchone()
-    conn.close()
-    return {
-        'question': dict(q),
-        'answer': dict(a) if a else None
-    }
