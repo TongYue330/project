@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>欢迎使用课程作业AI答疑助手</h2>
+<p>上传题目，获取分步骤解答。</p>
+<a class="btn" href="{{ url_for('main.upload') }}">上传题目</a>
+<a class="btn" href="{{ url_for('main.history') }}">查看历史记录</a>
+{% endblock %}

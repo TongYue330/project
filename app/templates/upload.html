@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>上传题目</h2>
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+<form method="post" action="{{ url_for('main.upload') }}">
+    <label>请输入题目文字：</label>
+    <textarea name="text" rows="5" placeholder="例如：请解释快速排序的时间复杂度"></textarea>
+    <p class="hint">提示：图片上传功能将在测试修订版中补充。</p>
+    <button type="submit">提交</button>
+</form>
+{% endblock %}

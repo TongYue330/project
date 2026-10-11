@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+{% if error %}
+<p class="error">{{ error }}</p>
+{% else %}
+<h2>解答结果</h2>
+<h3>题目：</h3>
+<p>{{ data.question.content }}</p>
+
+<h3>解答：</h3>
+{% if data.answer %}
+    {% for step in data.answer.steps %}
+    <div class="step">{{ step }}</div>
+    {% endfor %}
+    <p>{{ data.answer.content }}</p>
+    {% if data.answer.is_low_confidence %}
+    <p class="warn">此解答由AI生成，建议与同学或老师核对。</p>
+    {% endif %}
+{% else %}
+    <p>暂无解答</p>
+{% endif %}
+<a href="{{ url_for('main.index') }}">返回首页</a>
+{% endif %}
+{% endblock %}

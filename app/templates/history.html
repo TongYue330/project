@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>历史记录</h2>
+{% if records %}
+<table>
+    <thead>
+    <tr>
+        <th>日期</th>
+        <th>题目</th>
+        <th>解答摘要</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for r in records %}
+    <tr>
+        <td>{{ r.created_at }}</td>
+        <td>{{ r.content[:30] }}{% if r.content and r.content|length > 30 %}...{% endif %}</td>
+        <td>{{ r.answer_content[:40] if r.answer_content else '暂无解答' }}</td>
+        <td><a href="{{ url_for('main.detail', question_id=r.id) }}">查看</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>暂无提问记录，上传第一道题开始使用吧。</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,13 @@
+body { font-family: "Microsoft YaHei", sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+header { border-bottom: 2px solid #2874A6; margin-bottom: 20px; padding-bottom: 10px; }
+h1 { color: #2874A6; }
+nav a { margin-right: 15px; color: #2874A6; text-decoration: none; }
+.btn { display: inline-block; padding: 8px 16px; background: #2874A6; color: white; text-decoration: none; border-radius: 4px; margin-right: 10px; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+th { background: #D6EAF8; }
+.error { color: red; }
+.warn { color: #B7950B; background: #FEF9E7; padding: 8px; border-left: 3px solid #B7950B; }
+.step { background: #FEF9E7; padding: 8px; margin: 5px 0; border-left: 3px solid #B7950B; }
+textarea { width: 100%; font-family: inherit; }
+.hint { color: #888; font-size: 0.9em; }
