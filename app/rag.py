@@ -28,9 +28,9 @@ def retrieve(question, top_k=3):
         if score: ranked.append({**c,"score":round(score,4),"matched_terms":sorted(overlap)})
     ranked.sort(key=lambda x:(x["score"],len(x["matched_terms"])), reverse=True)
     return ranked[:top_k]
-def build_prompt(question, contexts, history=None):
+def build_prompt(question, contexts, history=None, use_rag=True):
     sources="\n\n".join(f"[{c['id']}] 来源：{c['source']}\n{c['text']}" for c in contexts) or "（没有检索到相关资料）"
-    messages=[{"role":"system","content":"你是课程作业AI答疑助手。只根据给定资料回答；资料不足时明确说资料不足，不要编造事实。只输出JSON对象，字段为status、answer、steps、citations；status为answered、needs_clarification、out_of_scope或insufficient_evidence之一；citations每项含source_id和quote，引用只能使用实际提供的方括号来源编号。"}]
+    messages=[{"role":"system","content":("你是课程作业AI答疑助手。" + ("只根据给定资料回答；资料不足时明确说资料不足，不要编造事实。" if use_rag else "可使用已有知识，但未知的课程安排或私人信息不得猜测。") + "只输出JSON对象，字段为status、answer、steps、citations；status为answered、needs_clarification、out_of_scope或insufficient_evidence之一；citations每项含source_id和quote，引用只能使用实际提供的方括号来源编号。")}]
     if history: messages.extend(history[-4:])
     messages.append({"role":"user","content":f"检索资料：\n{sources}\n\n用户问题：{question}"})
     return messages
@@ -56,7 +56,7 @@ def call_llm(messages, timeout=20):
     except (urlerror.URLError, TimeoutError): return {"success":False,"error":"模型连接失败或超时","elapsed_ms":round((time.perf_counter()-started)*1000)}
     except (ValueError, KeyError, IndexError, TypeError): return {"success":False,"error":"模型返回格式无法解析","elapsed_ms":round((time.perf_counter()-started)*1000)}
 def answer_question(question, use_rag=True):
-    contexts=retrieve(question) if use_rag else []; prompt=build_prompt(question,contexts); result=call_llm(prompt); result.update({"contexts":contexts,"prompt":prompt}); result["sources"]=[c["id"] for c in contexts] if result.get("success") else []
+    contexts=retrieve(question) if use_rag else []; prompt=build_prompt(question,contexts,use_rag=use_rag); result=call_llm(prompt); result.update({"contexts":contexts,"prompt":prompt}); result["sources"]=[c["id"] for c in contexts] if result.get("success") else []
     if result.get("success"):
         cited=set(re.findall(r"\[([^\]]+)\]", result.get("content", "")))
         allowed=set(result["sources"])
