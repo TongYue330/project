@@ -24,8 +24,9 @@ def upload():
             raw = answer_question(text, use_rag=request.form.get('use_rag') == 'on')
             if not raw['success']:
                 return render_template('upload.html', error=raw['error'])
+            parsed = json.loads(raw['content'])
             source_line = '\n\n检索来源：' + '、'.join(raw['sources']) if raw['sources'] else '\n\n检索来源：无（资料不足）'
-            result = {'success': True, 'content': raw['content'] + source_line, 'steps': [x for x in raw['content'].splitlines() if x.strip()], 'confidence': 0.9 if raw['contexts'] and raw.get('citation_valid', True) else 0.7, 'is_low_confidence': not bool(raw['contexts']) or not raw.get('citation_valid', True)}
+            result = {'success': True, 'content': parsed['answer'] + source_line, 'steps': parsed['steps'], 'confidence': 0.9 if raw['contexts'] and parsed['status'] == 'answered' else 0.7, 'is_low_confidence': not bool(raw['contexts']) or parsed['status'] != 'answered'}
         else:
             result = mock_answer(text)
             if not result['success']:

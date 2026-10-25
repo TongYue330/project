@@ -30,7 +30,7 @@ def retrieve(question, top_k=3):
     return ranked[:top_k]
 def build_prompt(question, contexts, history=None):
     sources="\n\n".join(f"[{c['id']}] 来源：{c['source']}\n{c['text']}" for c in contexts) or "（没有检索到相关资料）"
-    messages=[{"role":"system","content":"你是课程作业AI答疑助手。只根据给定资料回答；资料不足时明确说资料不足，不要编造事实。回答按‘结论、解释、依据’组织，引用资料时只能使用实际提供的方括号来源编号。"}]
+    messages=[{"role":"system","content":"你是课程作业AI答疑助手。只根据给定资料回答；资料不足时明确说资料不足，不要编造事实。只输出JSON对象，字段为status、answer、steps、citations；status为answered、needs_clarification、out_of_scope或insufficient_evidence之一；citations每项含source_id和quote，引用只能使用实际提供的方括号来源编号。"}]
     if history: messages.extend(history[-4:])
     messages.append({"role":"user","content":f"检索资料：\n{sources}\n\n用户问题：{question}"})
     return messages
@@ -43,6 +43,14 @@ def call_llm(messages, timeout=20):
         with urlrequest.urlopen(req, timeout=timeout) as resp: data=json.loads(resp.read().decode())
         elapsed=round((time.perf_counter()-started)*1000); content=data.get("choices",[{}])[0].get("message",{}).get("content","").strip()
         if not content: return {"success":False,"error":"模型返回内容为空","elapsed_ms":elapsed}
+        try:
+            parsed = json.loads(content)
+            required = {"status", "answer", "steps", "citations"}
+            if set(parsed) != required or parsed.get("status") not in {"answered", "needs_clarification", "out_of_scope", "insufficient_evidence"} or not isinstance(parsed.get("steps"), list) or not isinstance(parsed.get("citations"), list):
+                raise ValueError
+            content = json.dumps(parsed, ensure_ascii=False)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            return {"success":False,"error":"模型返回格式无法解析","elapsed_ms":elapsed}
         return {"success":True,"content":content,"elapsed_ms":elapsed,"usage":data.get("usage",{}),"model":data.get("model",os.getenv("DASHSCOPE_MODEL",DEFAULT_MODEL))}
     except urlerror.HTTPError as e: return {"success":False,"error":f"接口返回 HTTP {e.code}","elapsed_ms":round((time.perf_counter()-started)*1000)}
     except (urlerror.URLError, TimeoutError): return {"success":False,"error":"模型连接失败或超时","elapsed_ms":round((time.perf_counter()-started)*1000)}
