@@ -3,6 +3,7 @@ import json
 from flask import Blueprint, render_template, request, redirect, url_for, current_app
 from . import models
 from .ai_mock import mock_answer
+from .rag import answer_question
 
 bp = Blueprint('main', __name__)
 
@@ -19,9 +20,16 @@ def upload():
         if not text:
             return render_template('upload.html', error='请输入题目内容')
 
-        result = mock_answer(text)
-        if not result['success']:
-            return render_template('upload.html', error=result['message'])
+        if request.form.get('mode') == 'llm':
+            raw = answer_question(text, use_rag=request.form.get('use_rag') == 'on')
+            if not raw['success']:
+                return render_template('upload.html', error=raw['error'])
+            source_line = '\n\n检索来源：' + '、'.join(raw['sources']) if raw['sources'] else '\n\n检索来源：无（资料不足）'
+            result = {'success': True, 'content': raw['content'] + source_line, 'steps': [x for x in raw['content'].splitlines() if x.strip()], 'confidence': 0.9 if raw['contexts'] and raw.get('citation_valid', True) else 0.7, 'is_low_confidence': not bool(raw['contexts']) or not raw.get('citation_valid', True)}
+        else:
+            result = mock_answer(text)
+            if not result['success']:
+                return render_template('upload.html', error=result['message'])
 
         qid = models.insert_question(current_app, 'text', content=text)
         models.insert_answer(

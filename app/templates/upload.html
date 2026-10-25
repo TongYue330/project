@@ -7,7 +7,9 @@
 <form method="post" action="{{ url_for('main.upload') }}">
     <label>请输入题目文字：</label>
     <textarea name="text" rows="5" placeholder="例如：请解释快速排序的时间复杂度"></textarea>
-    <p class="hint">提示：图片上传功能将在测试修订版中补充。</p>
+    <label><input type="radio" name="mode" value="llm" checked> 千问模型 + RAG</label>
+    <label><input type="radio" name="mode" value="mock"> 本地模拟模式</label>
+    <label><input type="checkbox" name="use_rag" checked> 使用课程资料检索</label>
     <button type="submit">提交</button>
 </form>
 {% endblock %}
