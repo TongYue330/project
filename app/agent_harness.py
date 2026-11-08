@@ -387,6 +387,8 @@ class Harness:
                     break
                 steps += 1
                 self.current_state["steps"] = steps
+                tool_name = None
+                arguments = {}
                 try:
                     proposal = self._call_timeout(lambda: model.propose(messages), min(self.model_timeout, max(0.01, self.total_timeout - elapsed)))
                     if not isinstance(proposal, Mapping):
@@ -407,6 +409,9 @@ class Harness:
                         break
                     if proposal.get("type") != "tool_call":
                         raise AgentError("model response type is invalid")
+                    # Preserve the failed request as well as its error result so
+                    # the next model turn can correct the actual invocation.
+                    messages.append({"role": "assistant", "content": json.dumps(original_proposal, ensure_ascii=False)})
                     tool_name = proposal.get("tool")
                     if tool_name not in TOOL_REGISTRY:
                         raise ToolValidationError("tool is not in the allowlist")
@@ -421,8 +426,15 @@ class Harness:
                         raise ToolValidationError("statistics records must match the latest query result")
                     if tool_name == "export_statistics" and (state["last_statistics"] is None or arguments.get("statistics") != state["last_statistics"]):
                         raise ToolValidationError("export statistics must match the latest calculation")
+                    if tool_name == "export_statistics":
+                        output_name = arguments.get("output_name", f"{task_id}.json")
+                        if not isinstance(output_name, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", output_name) or not output_name.endswith(".json"):
+                            raise ToolValidationError("output_name must be a simple .json filename")
+                        arguments = {**arguments, "output_name": output_name}
                     operation = {"tool": tool_name, "arguments": _safe_json(arguments), "task_id": task_id,
                                  "impact": "Write or replace a JSON file in logs/agent_exports"}
+                    if tool_name == "export_statistics":
+                        operation["path"] = f"logs/agent_exports/{arguments['output_name']}"
                     if metadata["confirmation"]:
                         if confirm is None or not bool(self._call_timeout(lambda: confirm(operation), min(self.tool_timeout, max(0.01, self.total_timeout - (time.perf_counter() - started))))):
                             raise ConfirmationDenied("user confirmation was denied or unavailable")
@@ -440,19 +452,18 @@ class Harness:
                         state["last_query"] = result
                     if tool_name == "calculate_statistics":
                         state["last_statistics"] = result
-                    messages.append({"role": "assistant", "content": json.dumps(original_proposal, ensure_ascii=False)})
                     messages.append({"role": "tool", "name": tool_name, "content": json.dumps(result, ensure_ascii=False)})
                     self._append_log({"event": "tool_succeeded", "task_id": task_id, "step": steps, "tool": tool_name, "arguments": _safe_json(arguments), "result": _safe_json(result), "duration_ms": duration_ms})
                 except (OperationTimeout, ConfirmationDenied) as exc:
                     status = "timeout" if isinstance(exc, OperationTimeout) else ("cancelled" if self._cancel.is_set() else "confirmation_denied")
                     reason = str(exc)
-                    self._append_log({"event": "step_error", "task_id": task_id, "step": steps, "error_type": type(exc).__name__, "error": reason, "retry": False})
+                    self._append_log({"event": "step_error", "task_id": task_id, "step": steps, "tool": tool_name, "arguments": _safe_json(arguments), "error_type": type(exc).__name__, "error": reason, "retry": False})
                     break
                 except (ToolValidationError, ToolExecutionError, ConfirmationRequired, AgentError, sqlite3.Error) as exc:
                     retries += 1
                     error_text = str(exc)
-                    self._append_log({"event": "step_error", "task_id": task_id, "step": steps, "error_type": type(exc).__name__, "error": error_text, "retry": retries <= self.max_retries})
-                    messages.append({"role": "tool", "name": "harness", "content": json.dumps({"error": error_text, "retry_remaining": max(0, self.max_retries - retries)}, ensure_ascii=False)})
+                    self._append_log({"event": "step_error", "task_id": task_id, "step": steps, "tool": tool_name, "arguments": _safe_json(arguments), "error_type": type(exc).__name__, "error": error_text, "retry": retries <= self.max_retries})
+                    messages.append({"role": "tool", "name": tool_name or "harness", "content": json.dumps({"error": error_text, "retry_remaining": max(0, self.max_retries - retries)}, ensure_ascii=False)})
                     if retries > self.max_retries:
                         status, reason = "failed", f"retry limit reached: {error_text}"
                         break

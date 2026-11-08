@@ -72,9 +72,14 @@ class AgentHarnessTests(unittest.TestCase):
             {"type": "tool_call", "tool": "export_statistics", "arguments": {"statistics": "$last_statistics"}},
             {"type": "final", "status": "completed", "answer": "ok", "statistics": {"total": 2}},
         ]
-        agreed = self.harness(ScriptedModel(common), confirm=lambda operation: True)
+        operations = []
+        def agree(operation):
+            operations.append(operation)
+            return True
+        agreed = self.harness(ScriptedModel(common), confirm=agree)
         self.assertEqual(agreed["status"], "completed")
         self.assertTrue(any(c["tool"] == "export_statistics" for c in agreed["tool_calls"]))
+        self.assertEqual(operations[0]["path"], f"logs/agent_exports/{agreed['task_id']}.json")
         rejected = self.harness(ScriptedModel(common), confirm=lambda operation: False, max_retries=0)
         self.assertEqual(rejected["status"], "confirmation_denied")
         self.assertFalse(any(c["tool"] == "export_statistics" for c in rejected["tool_calls"]))
@@ -112,10 +117,57 @@ class AgentHarnessTests(unittest.TestCase):
             result = self.harness(model, max_retries=0)
         self.assertIn("injected database failure", result["reason"])
 
+    def test_failed_request_and_error_are_in_next_context(self):
+        class InspectingModel:
+            def __init__(self):
+                self.messages = None
+            def propose(self, messages):
+                if self.messages is None:
+                    self.messages = []
+                    return {"type": "tool_call", "tool": "query_history", "arguments": {"limit": 99}}
+                self.messages = list(messages)
+                return {"type": "final", "status": "failed", "answer": "bad limit", "statistics": {}}
+        model = InspectingModel()
+        self.harness(model)
+        self.assertEqual([m["role"] for m in model.messages], ["user", "assistant", "tool"])
+        self.assertIn('"limit": 99', model.messages[1]["content"])
+        self.assertIn("limit must be an integer", model.messages[2]["content"])
+
     def test_final_cannot_claim_completion_without_tools(self):
         result = self.harness(ScriptedModel([{"type":"final", "status":"completed", "answer":"done", "statistics":{"total":2}}]))
         self.assertEqual(result["status"], "failed")
         self.assertIn("not executed", result["reason"])
+
+    def test_final_statistics_must_match_tool_result(self):
+        result = self.harness(ScriptedModel([
+            {"type": "tool_call", "tool": "query_history", "arguments": {"limit": 20}},
+            {"type": "tool_call", "tool": "calculate_statistics", "arguments": {"records": "$last_query.records"}},
+            {"type": "final", "status": "completed", "statistics": {"total": 999}},
+        ]))
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("do not match", result["reason"])
+
+    def test_date_and_database_scope_are_checked(self):
+        from app.agent_harness import ToolValidationError
+        with self.assertRaises(ToolValidationError):
+            query_history({"since": "invalid"}, self.db, self.db)
+        with self.assertRaises(ToolValidationError):
+            query_history({}, self.db.parent / "other.db", self.db)
+
+    def test_confirmation_timeout_does_not_execute_export(self):
+        from app.agent_harness import TOOL_REGISTRY
+        sequence = [
+            {"type": "tool_call", "tool": "query_history", "arguments": {"limit": 20}},
+            {"type": "tool_call", "tool": "calculate_statistics", "arguments": {"records": "$last_query.records"}},
+            {"type": "tool_call", "tool": "export_statistics", "arguments": {"statistics": "$last_statistics"}},
+        ]
+        def slow_confirmation(operation):
+            time.sleep(0.1)
+            return True
+        with patch.dict(TOOL_REGISTRY["export_statistics"], {"handler": lambda *a: self.fail("export executed after timeout")}):
+            result = self.harness(ScriptedModel(sequence), confirm=slow_confirmation, tool_timeout=0.04)
+        self.assertEqual(result["status"], "timeout")
+        self.assertNotIn("export_statistics", [call["tool"] for call in result["tool_calls"]])
 
     def test_cancel_stops_the_run(self):
         harness = Harness(db_path=self.db, run_log=self.log)

@@ -7,10 +7,10 @@ never evaluates model generated Python or shell commands.
 
 ```powershell
 $env:DASHSCOPE_API_KEY = '<your-key>'
-python scripts/run_agent_demo.py --model qwen
-python scripts/run_agent_demo.py --model scripted
-python scripts/run_agent_demo.py --model scripted --export
-python -m unittest discover -s tests -v
+venv\Scripts\python.exe scripts/run_agent_demo.py --model qwen
+venv\Scripts\python.exe scripts/run_agent_demo.py --model scripted
+venv\Scripts\python.exe scripts/run_agent_demo.py --model scripted --export
+venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
 The Qwen adapter reads `DASHSCOPE_API_KEY` from the environment. The key is
@@ -18,6 +18,8 @@ never written to source code or logs. The deterministic `ScriptedModel` is used
 for repeatable local tests. Use `--export` to see the file name and impact and
 answer `yes` before the JSON export is executed. A denied confirmation ends
 the run without writing the file.
+The confirmation preview includes the exact output path and replacement impact.
+The current test suite contains 18 automated cases.
 
 ## Protocol
 
@@ -46,6 +48,8 @@ The default limits are five model steps, two correction retries, 20 seconds per
 model call, five seconds per tool call, and 30 seconds for the complete run.
 Every run receives a task identifier and writes redacted JSONL events to
 `logs/agent_runs.jsonl`.
+Failed tool requests and their error results are kept in the next model context
+so the model can correct parameters within the configured retry limit.
 
 Call `Harness.cancel()` to request termination. `Harness.current_state` exposes
 the running task ID, step count, and final status. A timeout or cancellation
