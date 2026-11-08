@@ -6,14 +6,18 @@ never evaluates model generated Python or shell commands.
 ## Run
 
 ```powershell
-$env:PYTHONPATH = (Get-Location).Path
-python scripts/run_agent_demo.py
+$env:DASHSCOPE_API_KEY = '<your-key>'
+python scripts/run_agent_demo.py --model qwen
+python scripts/run_agent_demo.py --model scripted
+python scripts/run_agent_demo.py --model scripted --export
 python -m unittest discover -s tests -v
 ```
 
 The Qwen adapter reads `DASHSCOPE_API_KEY` from the environment. The key is
 never written to source code or logs. The deterministic `ScriptedModel` is used
-for repeatable local tests.
+for repeatable local tests. Use `--export` to see the file name and impact and
+answer `yes` before the JSON export is executed. A denied confirmation ends
+the run without writing the file.
 
 ## Protocol
 
@@ -30,9 +34,11 @@ Final response:
 ```
 
 Registered tools are `query_history`, `calculate_statistics`, and
-`export_statistics`. The first two are read-only. Export is restricted to
-`logs/agent_exports`, requires a confirmation callback, and uses an atomic file
-replacement.
+`export_statistics`. The first two are read-only. Query opens the database in
+SQLite read-only mode. Export is restricted to `logs/agent_exports`, requires a
+confirmation callback, and uses an atomic file replacement. Raw question and
+answer text stays inside the harness: Qwen receives only a summary of tool
+results and references records through `$last_query.records`.
 
 ## Runtime limits
 
@@ -40,4 +46,9 @@ The default limits are five model steps, two correction retries, 20 seconds per
 model call, five seconds per tool call, and 30 seconds for the complete run.
 Every run receives a task identifier and writes redacted JSONL events to
 `logs/agent_runs.jsonl`.
+
+Call `Harness.cancel()` to request termination. `Harness.current_state` exposes
+the running task ID, step count, and final status. A timeout or cancellation
+stops local waiting; it cannot guarantee that an already sent remote request
+has stopped on the server.
 

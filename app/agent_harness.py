@@ -7,6 +7,7 @@ the harness validates every argument before dispatch.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 import re
@@ -48,6 +49,14 @@ class ToolExecutionError(AgentError):
     pass
 
 
+class OperationTimeout(AgentError):
+    pass
+
+
+class ConfirmationDenied(AgentError):
+    pass
+
+
 class ConfirmationRequired(AgentError):
     def __init__(self, message: str, operation: Mapping[str, Any]):
         super().__init__(message)
@@ -57,7 +66,7 @@ class ConfirmationRequired(AgentError):
 def _safe_json(value: Any, limit: int = 1200) -> Any:
     """Keep logs useful without recording credentials or unbounded text."""
     if isinstance(value, Mapping):
-        return {str(k): _safe_json(v, limit) for k, v in value.items() if str(k).lower() not in {"key", "api_key", "authorization", "token", "password"}}
+        return {str(k): _safe_json(v, limit) for k, v in value.items() if str(k).lower() not in {"key", "api_key", "authorization", "token", "password", "question", "answer", "content", "records", "top_keywords"}}
     if isinstance(value, list):
         return [_safe_json(v, limit) for v in value[:MAX_RECORDS]]
     if isinstance(value, str):
@@ -120,10 +129,12 @@ def query_history(arguments: Mapping[str, Any], db_path: Path = DEFAULT_DB, allo
     """
     params.append(limit)
     try:
-        conn = sqlite3.connect(str(requested_db), timeout=TOOL_TIMEOUT_SECONDS)
+        conn = sqlite3.connect(requested_db.as_uri() + "?mode=ro", uri=True, timeout=TOOL_TIMEOUT_SECONDS)
         conn.row_factory = sqlite3.Row
-        rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
-        conn.close()
+        try:
+            rows = [dict(row) for row in conn.execute(sql, params).fetchall()]
+        finally:
+            conn.close()
     except sqlite3.Error as exc:
         raise ToolExecutionError(f"database query failed: {exc}") from exc
     return {"records": rows, "count": len(rows), "filters": {"keyword": keyword, "since": since, "until": until}}
@@ -139,7 +150,12 @@ def calculate_statistics(arguments: Mapping[str, Any]) -> Dict[str, Any]:
     for item in records:
         if not isinstance(item, Mapping) or "id" not in item or "question" not in item:
             raise ToolValidationError("each record must contain id and question")
-    confidences = [float(r["confidence"]) for r in records if r.get("confidence") is not None]
+    try:
+        confidences = [float(r["confidence"]) for r in records if r.get("confidence") is not None]
+        if any(not 0 <= value <= 1 for value in confidences):
+            raise ValueError("confidence outside 0..1")
+    except (TypeError, ValueError) as exc:
+        raise ToolValidationError("confidence must be a number from 0 to 1") from exc
     low = sum(1 for r in records if bool(r.get("is_low_confidence")))
     type_counts: Dict[str, int] = {}
     for record in records:
@@ -241,8 +257,25 @@ class QwenAgentModel:
         key = os.getenv("DASHSCOPE_API_KEY", "").strip()
         if not key:
             raise AgentError("DASHSCOPE_API_KEY is not configured")
-        system = {"role": "system", "content": "Return exactly one JSON object. For a tool call use {type:tool_call,tool:string,arguments:object}. To finish use {type:final,status:completed|failed,answer:string,statistics:object}. Only choose from query_history, calculate_statistics, export_statistics."}
-        payload = json.dumps({"model": self.model, "messages": [system, *messages], "temperature": 0.1, "stream": False}).encode()
+        system = {"role": "system", "content": (
+            "你是单Agent，目标是查询本项目答疑历史并生成统计摘要。只输出一个合法JSON对象，不要Markdown。"
+            "先调用query_history，参数keyword为可选字符串、limit为1到20的整数；再调用calculate_statistics，参数必须为"
+            "{\"records\":\"$last_query.records\"}。工具结果会作为后续user消息回传。"
+            "最终输出{\"type\":\"final\",\"status\":\"completed\",\"answer\":\"...\","
+            "\"statistics\":{\"total\":\"$last_statistics.total\"}}。"
+            "调用工具时输出{\"type\":\"tool_call\",\"tool\":\"工具名\",\"arguments\":{...}}。"
+            "只允许query_history、calculate_statistics、export_statistics；导出需用户确认。"
+        )}
+        api_messages = [system]
+        for message in messages:
+            if message.get("role") == "tool":
+                result = json.loads(message.get("content", "{}"))
+                # Keep raw question/answer history local. The model chooses
+                # references to the records held in the harness instead.
+                api_messages.append({"role": "user", "content": "工具执行结果：" + json.dumps(_safe_json(result), ensure_ascii=False)})
+            else:
+                api_messages.append({"role": message["role"], "content": str(message.get("content", ""))})
+        payload = json.dumps({"model": self.model, "messages": api_messages, "temperature": 0.1, "stream": False}).encode()
         req = urlrequest.Request(self.url, data=payload, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}, method="POST")
         try:
             with urlrequest.urlopen(req, timeout=self.timeout) as response:
@@ -272,22 +305,40 @@ class Harness:
         self.tool_timeout = tool_timeout
         self.total_timeout = total_timeout
         self._lock = threading.Lock()
+        self._cancel = threading.Event()
+        self.current_state: Dict[str, Any] = {"status": "idle", "steps": 0}
+
+    def cancel(self) -> None:
+        """Request termination of the next wait/step; running threads may remain."""
+        self._cancel.set()
 
     def _append_log(self, event: Mapping[str, Any]) -> None:
+        event = {"time": datetime.now().isoformat(timespec="milliseconds"), **event}
         self.run_log.parent.mkdir(parents=True, exist_ok=True)
         with self._lock:
             with self.run_log.open("a", encoding="utf-8") as stream:
                 stream.write(json.dumps(_safe_json(event), ensure_ascii=False) + "\n")
 
-    @staticmethod
-    def _call_timeout(function: Callable[[], Any], timeout: float) -> Any:
+    def _call_timeout(self, function: Callable[[], Any], timeout: float) -> Any:
         executor = ThreadPoolExecutor(max_workers=1)
         future = executor.submit(function)
         try:
-            return future.result(timeout=timeout)
+            deadline = time.monotonic() + timeout
+            while True:
+                if self._cancel.is_set():
+                    future.cancel()
+                    raise ConfirmationDenied("run cancelled by user; already running background work may continue")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise FutureTimeout()
+                try:
+                    return future.result(timeout=min(remaining, 0.05))
+                except FutureTimeout:
+                    if time.monotonic() >= deadline:
+                        raise
         except FutureTimeout as exc:
             future.cancel()
-            raise AgentError(f"operation timed out after {timeout:g}s") from exc
+            raise OperationTimeout(f"operation timed out after {timeout:g}s") from exc
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
@@ -299,11 +350,21 @@ class Harness:
             return False, "final response did not include checked statistics"
         if state.get("last_statistics") is None:
             return False, "statistics tool was not executed"
-        if int(statistics.get("total", -1)) != int(state["last_statistics"].get("total", -2)):
+        reported_total = statistics.get("total")
+        if isinstance(reported_total, str) and re.fullmatch(r"[0-9]+", reported_total):
+            reported_total = int(reported_total)
+        if isinstance(reported_total, bool) or not isinstance(reported_total, int):
+            return False, "final total must be an integer"
+        if reported_total != state["last_statistics"].get("total"):
             return False, "final statistics do not match tool result"
+        for field, value in statistics.items():
+            if field != "total" and state["last_statistics"].get(field) != value:
+                return False, f"final {field} does not match tool result"
         return True, "success criteria satisfied"
 
     def run(self, task: str, model: Any, *, confirm: Optional[Callable[[Mapping[str, Any]], bool]] = None) -> Dict[str, Any]:
+        if not isinstance(task, str) or not task.strip() or len(task) > 1000:
+            raise ToolValidationError("task must contain 1..1000 characters")
         task_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
         started = time.perf_counter()
         messages: list[Mapping[str, Any]] = [{"role": "user", "content": task}]
@@ -313,24 +374,34 @@ class Harness:
         status = "failed"
         reason = "agent did not finish"
         steps = 0
-        self._append_log({"event": "run_started", "task_id": task_id, "task": task, "started_at": datetime.now().isoformat(timespec="seconds")})
+        self.current_state = {"task_id": task_id, "status": "running", "steps": 0}
+        self._append_log({"event": "run_started", "task_id": task_id, "task_sha256": hashlib.sha256(task.encode()).hexdigest(), "started_at": datetime.now().isoformat(timespec="seconds")})
         try:
             while steps < self.max_steps:
+                if self._cancel.is_set():
+                    status, reason = "cancelled", "run cancelled by user"
+                    break
                 elapsed = time.perf_counter() - started
                 if elapsed >= self.total_timeout:
                     status, reason = "timeout", f"total runtime exceeded {self.total_timeout:g}s"
                     break
                 steps += 1
+                self.current_state["steps"] = steps
                 try:
                     proposal = self._call_timeout(lambda: model.propose(messages), min(self.model_timeout, max(0.01, self.total_timeout - elapsed)))
                     if not isinstance(proposal, Mapping):
                         raise AgentError("model response must be a JSON object")
+                    original_proposal = dict(proposal)
                     proposal = resolve_references(proposal, state)
                     if proposal.get("type") == "final":
+                        if time.perf_counter() - started >= self.total_timeout:
+                            status, reason = "timeout", f"total runtime exceeded {self.total_timeout:g}s"
+                            break
                         ok, check_reason = self._check_final(proposal, state)
                         final = dict(proposal)
                         if ok:
                             status, reason = "completed", check_reason
+                            final["statistics"] = state["last_statistics"]
                         else:
                             status, reason = "failed", check_reason
                         break
@@ -340,11 +411,21 @@ class Harness:
                     if tool_name not in TOOL_REGISTRY:
                         raise ToolValidationError("tool is not in the allowlist")
                     arguments = resolve_references(proposal.get("arguments", {}), state)
+                    if not isinstance(arguments, Mapping):
+                        raise ToolValidationError("arguments must be an object")
+                    allowed_fields = set(tool_schemas()[tool_name]["fields"])
+                    if set(arguments) - allowed_fields:
+                        raise ToolValidationError("unknown tool argument field")
                     metadata = TOOL_REGISTRY[tool_name]
-                    operation = {"tool": tool_name, "arguments": _safe_json(arguments), "task_id": task_id}
+                    if tool_name == "calculate_statistics" and (state["last_query"] is None or arguments.get("records") != state["last_query"]["records"]):
+                        raise ToolValidationError("statistics records must match the latest query result")
+                    if tool_name == "export_statistics" and (state["last_statistics"] is None or arguments.get("statistics") != state["last_statistics"]):
+                        raise ToolValidationError("export statistics must match the latest calculation")
+                    operation = {"tool": tool_name, "arguments": _safe_json(arguments), "task_id": task_id,
+                                 "impact": "Write or replace a JSON file in logs/agent_exports"}
                     if metadata["confirmation"]:
-                        if confirm is None or not bool(confirm(operation)):
-                            raise AgentError("user confirmation was denied or unavailable")
+                        if confirm is None or not bool(self._call_timeout(lambda: confirm(operation), min(self.tool_timeout, max(0.01, self.total_timeout - (time.perf_counter() - started))))):
+                            raise ConfirmationDenied("user confirmation was denied or unavailable")
                     started_tool = time.perf_counter()
                     if tool_name == "query_history":
                         call = lambda: metadata["handler"](arguments, self.db_path, self.db_path)
@@ -359,9 +440,14 @@ class Harness:
                         state["last_query"] = result
                     if tool_name == "calculate_statistics":
                         state["last_statistics"] = result
-                    messages.append({"role": "assistant", "content": json.dumps(proposal, ensure_ascii=False)})
+                    messages.append({"role": "assistant", "content": json.dumps(original_proposal, ensure_ascii=False)})
                     messages.append({"role": "tool", "name": tool_name, "content": json.dumps(result, ensure_ascii=False)})
                     self._append_log({"event": "tool_succeeded", "task_id": task_id, "step": steps, "tool": tool_name, "arguments": _safe_json(arguments), "result": _safe_json(result), "duration_ms": duration_ms})
+                except (OperationTimeout, ConfirmationDenied) as exc:
+                    status = "timeout" if isinstance(exc, OperationTimeout) else ("cancelled" if self._cancel.is_set() else "confirmation_denied")
+                    reason = str(exc)
+                    self._append_log({"event": "step_error", "task_id": task_id, "step": steps, "error_type": type(exc).__name__, "error": reason, "retry": False})
+                    break
                 except (ToolValidationError, ToolExecutionError, ConfirmationRequired, AgentError, sqlite3.Error) as exc:
                     retries += 1
                     error_text = str(exc)
@@ -377,6 +463,7 @@ class Harness:
         except Exception as exc:  # keep the harness observable even for unexpected failures
             status, reason = "failed", f"unexpected harness error: {type(exc).__name__}: {exc}"
         elapsed_ms = round((time.perf_counter() - started) * 1000)
+        self.current_state = {"task_id": task_id, "status": status, "steps": steps, "elapsed_ms": elapsed_ms}
         output = {"task_id": task_id, "status": status, "reason": reason, "steps": steps, "retries": retries, "elapsed_ms": elapsed_ms,
                   "answer": final.get("answer", ""), "statistics": final.get("statistics"), "tool_calls": state["tool_calls"]}
         self._append_log({"event": "run_finished", **output})
